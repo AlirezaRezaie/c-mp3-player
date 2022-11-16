@@ -3,7 +3,7 @@ LIBS =  -lvlc \
 
 EXE_NAME = exe
 
-link: sources
+build: sources
 	gcc *.o $(LIBS) -o $(EXE_NAME)
 
 debug: sources
