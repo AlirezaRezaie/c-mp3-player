@@ -49,8 +49,6 @@ int main(int argc, char **argv)
         sleep (1);
 
     }
-    printf("\na");
-    fflush(stdout);
     /* av thread listens for running argument to see if it should continue working
        setting it to false cause it to break out of while loop and terminates the thread
     */ 
@@ -58,7 +56,6 @@ int main(int argc, char **argv)
     
     // waiting to fully terminate
     pthread_join(av,NULL);
-    fflush(stdout);
     printf("volume thread terminated successfully\n");
 
     // Stop playing
