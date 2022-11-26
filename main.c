@@ -1,4 +1,12 @@
-#include "globals.h"
+#include <stdio.h>
+#include <unistd.h>
+#include <vlc/vlc.h>
+#include <pthread.h>
+#include <string.h>
+#include <errno.h>
+#include <termios.h>
+#include <fcntl.h>
+#include <time.h>
 
 int main(int argc, char **argv)
 {
@@ -24,19 +32,20 @@ int main(int argc, char **argv)
     // play the media_player
     libvlc_media_player_play(mp);
 
-    // initializing thread arguments
-    struct arg_struct t;
-    struct arg_struct *av_args = &t;
-    av_args->mp = mp;
-    av_args->running = true;
+    struct termios info;
+    fcntl(0, F_SETFL, O_NONBLOCK); /* make it non-blockin for constantly checking for if running */
+    tcgetattr(0, &info);          /* get current terminal attirbutes; 0 is the file descriptor for stdin */
+    info.c_lflag &= ~ICANON;      /* disable canonical mode */
+    info.c_lflag &= ~ECHO;        /* disable user input logging (echo) */
+    tcsetattr(0, TCSANOW, &info); /* set immediately */
 
-    // create volume adjust thread
-    pthread_t av;
-    printf("initializing vol adjust thread\n");
-    pthread_create(&av, NULL, adj_vol,(void*)av_args);
+    // insuring the media started playing instead of blindly sleeping
+    while (!libvlc_media_player_is_playing(mp));
 
-    sleep(1);
-    while (libvlc_media_player_is_playing(mp) && ch != 'E')
+    unsigned short int vol= 100;
+    char ch;
+    long int sec = time(NULL);
+    while (libvlc_media_player_is_playing(mp) && (ch = getchar()) != 'E')
     {
         int64_t milliseconds = libvlc_media_player_get_time(mp);
         int64_t seconds = milliseconds / 1000;
@@ -44,18 +53,35 @@ int main(int argc, char **argv)
         milliseconds -= seconds * 1000;
         seconds -= minutes * 60;
 
+        if (time(NULL) >=  sec + 1){
         printf("Current time: %ld:%ld\r", minutes, seconds);
+        sec = time(NULL);
+        }
+        switch (ch)
+        {
+        case 'p':
+            vol += 10;
+            printf("\n%d\r",vol);
+            libvlc_audio_set_volume(mp,vol);
+            break;
+        case 'o':
+            vol -= +10;
+                    fflush(stdout);
+
+            printf("\n%d\r",vol);
+            libvlc_audio_set_volume( mp,vol);
+            break;
+        }
         fflush(stdout);
-        sleep (1);
 
     }
-    /* av thread listens for running argument to see if it should continue working
-       setting it to false cause it to break out of while loop and terminates the thread
-    */ 
-    av_args->running = false;
-    
-    // waiting to fully terminate
-    pthread_join(av,NULL);
+
+    // setting the terminal back to canonical mode
+    tcgetattr(0, &info);
+    info.c_lflag |= ICANON;
+    info.c_lflag |= ECHO;
+    tcsetattr(0, TCSANOW, &info);
+
     printf("volume thread terminated successfully\n");
 
     // Stop playing
